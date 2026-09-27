@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ledger Snapper</title>
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --green: #0F6E56;
+      --green-deep: #0b5943;
+      --green-soft: #E1F5EE;
+      --green-light: #5eead4;
+      --amber: #854F0B;
+      --amber-soft: #FAEEDA;
+      --dark: #09261e;
+      --slate: #64748b;
+      --slate-light: #94a3b8;
+      --border: #e2e8f0;
+      --white: #ffffff;
+      --bg: #f8fafc;
+      --radius-lg: 20px;
+      --radius-xl: 28px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04);
+      --shadow-lg: 0 10px 40px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06);
+      --shadow-xl: 0 20px 60px rgba(0,0,0,0.13), 0 4px 16px rgba(0,0,0,0.07);
+    }
+
+    body { margin: 0; padding: 0; overflow: hidden; font-family: 'Plus Jakarta Sans', sans-serif; }
+    #map { position: absolute; inset: 0; z-index: 0; }
+
+    .sidebar-scroll::-webkit-scrollbar { width: 4px; }
+    .sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+    .sidebar-scroll::-webkit-scrollbar-thumb { background: #dde3ec; border-radius: 99px; }
+
+    /* ── Navbar ── */
+    .nav-root {
+      position: absolute; top: 0; left: 0; width: 100%;
+      background: rgba(9, 38, 30, 0.96);
+      backdrop-filter: blur(16px) saturate(1.6);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      z-index: 50; height: 68px;
+      padding: 0 28px;
+      display: flex; justify-content: space-between; align-items: center;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .nav-brand {
+      display: flex; align-items: center; gap: 12px;
+      cursor: pointer; user-select: none;
+    }
+    .nav-logo-badge {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 12px;
+      padding: 6px 10px;
+      display: flex; align-items: center; justify-content: center;
+      height: 38px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .nav-logo-badge:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.25); }
+    .nav-logo-img { height: 26px; width: auto; object-fit: contain; display: block; }
+
+    .nav-brand-text {
+      font-size: 18px; font-weight: 800; color: #ffffff;
+      letter-spacing: -0.02em; display: flex; align-items: center; gap: 2px;
+    }
+    .nav-brand-text span { color: var(--green-light); }
+
+    .nav-link {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+      color: #cbd5e1; text-decoration: none;
+      display: flex; align-items: center; gap: 6px;
+      transition: color 0.15s;
+    }
+    .nav-link:hover { color: var(--green-light); }
+
+    .nav-btn-login {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+      color: #f1f5f9; background: none; border: none; cursor: pointer;
+      transition: color 0.15s;
+    }
+    .nav-btn-login:hover { color: var(--green-light); }
+
+    .nav-btn-signup {
+      font-size: 11px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+      color: #042f24; background: var(--green-light);
+      border: none; cursor: pointer;
+      padding: 10px 22px; border-radius: 99px;
+      box-shadow: 0 4px 14px rgba(94, 234, 212, 0.3);
+      transition: all 0.15s ease;
+    }
+    .nav-btn-signup:hover { background: #ffffff; color: var(--green-deep); transform: translateY(-1px); }
+
+    /* ── Cart UI ── */
+    .nav-btn-cart {
+      font-size: 12px; font-weight: 800; letter-spacing: 0.05em;
+      color: #042f24; background: var(--green-light);
+      border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;
+      padding: 8px 18px; border-radius: 99px;
+      box-shadow: 0 4px 14px rgba(94, 234, 212, 0.3);
+      transition: all 0.15s ease;
+    }
+    .nav-btn-cart:hover { background: #ffffff; color: var(--green-deep); transform: translateY(-1px); }
+    .cart-count { background: #042f24; color: white; padding: 2px 6px; border-radius: 10px; font-size: 10px; transition: transform 0.2s; }
+
+    .cart-panel {
+      position: absolute; top: 80px; right: 28px; width: 320px; max-height: 400px;
+      background: rgba(255,255,255,0.98); backdrop-filter: blur(16px);
+      border-radius: 20px; box-shadow: var(--shadow-xl); border: 1px solid var(--border);
+      padding: 16px; z-index: 55; display: none; flex-direction: column;
+    }
+    .cart-panel.open { display: flex; }
+    .cart-header { font-weight: 800; font-size: 14px; color: var(--dark); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 10px; }
+    .cart-items { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+    .cart-total { font-weight: 800; font-size: 16px; color: var(--green); text-align: right; border-top: 1px solid var(--border); padding-top: 10px; }
+
+    /* ── Sidebar ── */
+    .sidebar-root {
+      position: absolute;
+      top: 84px; left: 16px;
+      bottom: 16px;
+      height: calc(100vh - 100px);
+      width: 360px;
+      background: rgba(255,255,255,0.98);
+      backdrop-filter: blur(20px) saturate(1.5);
+      box-shadow: var(--shadow-xl);
+      z-index: 40;
+      display: flex; flex-direction: column;
+      border-radius: 28px;
+      border: 1px solid rgba(226,232,240,0.8);
+      transform: translateX(-420px);
+      transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+    }
+    @media (min-width: 768px) { .sidebar-root { transform: translateX(0); } }
+
+    .sidebar-inner {
+      flex: 1; overflow-y: auto;
+      padding: 20px;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+
+    .add-facility-card {
+      background: linear-gradient(135deg, #ecfdf5 0%, var(--green-soft) 100%);
+      border: 1px solid #bfe8d9;
+      border-radius: 20px;
+      padding: 18px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px;
+    }
+    .add-facility-card h3 { font-size: 13px; font-weight: 800; color: #1e293b; margin: 0 0 3px; }
+    .add-facility-card p { font-size: 11px; color: var(--slate); margin: 0; font-weight: 500; }
+    .btn-add-facility {
+      background: var(--green); color: white;
+      font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+      border: none; cursor: pointer;
+      padding: 10px 18px; border-radius: 99px;
+      white-space: nowrap;
+      box-shadow: 0 4px 12px rgba(15,110,86,0.3);
+      transition: background 0.15s, transform 0.15s;
+    }
+    .btn-add-facility:hover { background: var(--green-deep); transform: translateY(-1px); }
+
+    .section-label {
+      font-size: 10px; font-weight: 800; color: var(--slate-light);
+      text-transform: uppercase; letter-spacing: 0.18em;
+      margin: 0 0 8px 2px; display: block;
+    }
+
+    .field-input {
+      width: 100%;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      padding: 12px 16px 12px 44px;
+      font-size: 13px; font-weight: 600;
+      color: #0f172a;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+    }
+    .field-input:focus { border-color: var(--green); background: white; box-shadow: 0 0 0 3px rgba(15,110,86,0.12); }
+    .field-input::placeholder { color: var(--slate-light); font-weight: 500; }
+
+    .input-wrap { position: relative; }
+    .input-icon {
+      position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+      width: 16px; height: 16px; color: var(--slate-light); pointer-events: none;
+    }
+
+    .btn-gps {
+      background: var(--green); color: white;
+      border: none; cursor: pointer;
+      width: 48px; height: 48px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(15, 110, 86, 0.25);
+      transition: background 0.15s, transform 0.15s;
+    }
+    .btn-gps:hover { background: var(--green-deep); transform: translateY(-1px); }
+
+    .field-select {
+      width: 100%; appearance: none;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      padding: 12px 40px 12px 16px;
+      font-size: 13px; font-weight: 700; color: #0f172a;
+      outline: none; cursor: pointer;
+    }
+
+    .btn-route {
+      background: var(--green); color: white;
+      border: none; cursor: pointer;
+      font-size: 11px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 0 24px; border-radius: 14px; height: 48px;
+      flex: 1;
+      box-shadow: 0 4px 14px rgba(15,110,86,0.3);
+      transition: background 0.15s, transform 0.15s;
+    }
+    .btn-route:hover { background: var(--green-deep); transform: translateY(-1px); }
+
+    .sidebar-divider { height: 1px; background: var(--border); margin: 4px 0; }
+    .nearby-count-badge {
+      background: var(--green-soft); color: var(--green);
+      font-size: 10px; font-weight: 800;
+      padding: 3px 10px; border-radius: 99px;
+    }
+
+    .facility-card {
+      background: white;
+      border: 1.5px solid var(--border);
+      border-radius: 16px;
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+    }
+    .facility-card:hover { border-color: var(--green-light); box-shadow: 0 4px 16px rgba(15,110,86,0.1); transform: translateY(-1px); }
+
+    /* ── Markers & Popups ── */
+    .facility-label {
+      opacity: 0; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease;
+      transform: translateY(6px); font-size: 11px; font-weight: 700; color: #0f172a;
+      white-space: nowrap; text-overflow: ellipsis; overflow: hidden; max-width: 200px;
+    }
+    body.map-zoomed-in .facility-label { opacity: 1; transform: translateY(0); }
+
+    .marker-pin {
+      width: 14px; height: 14px; border-radius: 50%;
+      background: var(--green); border: 2.5px solid white;
+      box-shadow: 0 3px 10px rgba(15,110,86,0.35); display: block; transform: translateY(-2px);
+    }
+    .marker-wrap { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+
+    .mapboxgl-popup-content {
+      border-radius: 20px; padding: 0; overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.16);
+      border: 1px solid rgba(226,232,240,0.8);
+      width: 290px;
+    }
+    .mapboxgl-popup-tip { display: none; }
+    .mapboxgl-popup-close-button {
+      position: absolute; top: 10px; right: 10px;
+      background: rgba(255,255,255,0.92);
+      border: 1px solid rgba(226,232,240,0.8);
+      border-radius: 50%; width: 26px; height: 26px;
+      font-size: 14px; display: flex; align-items: center; justify-content: center;
+      z-index: 10; cursor: pointer; color: var(--slate);
+    }
+
+    /* ── Zoom controls ── */
+    .zoom-controls {
+      position: absolute; bottom: 96px; right: 24px; z-index: 10;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .btn-zoom {
+      width: 44px; height: 44px;
+      background: rgba(255,255,255,0.97);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      color: var(--slate); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: var(--shadow-md);
+      transition: all 0.15s;
+    }
+    .btn-zoom:hover { color: var(--green); border-color: var(--green-light); transform: scale(1.05); }
+
+    /* ── Integrated Floating AI Chatbox ── */
+    .chat-launcher-btn {
+      position: fixed; bottom: 24px; right: 24px;
+      width: 58px; height: 58px; border-radius: 50%;
+      background: var(--green); color: white; border: none;
+      box-shadow: 0 8px 24px rgba(15, 110, 86, 0.4);
+      cursor: pointer; z-index: 60;
+      display: flex; align-items: center; justify-content: center;
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s;
+    }
+    .chat-launcher-btn:hover { transform: scale(1.08); background: var(--green-deep); }
+
+    .chat-widget-card {
+      position: fixed; bottom: 94px; right: 24px;
+      width: 400px; height: 540px; max-width: calc(100vw - 48px);
+      background: rgba(255, 255, 255, 0.98);
+      backdrop-filter: blur(16px);
+      border-radius: 24px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(226, 232, 240, 0.9);
+      display: flex; flex-direction: column;
+      overflow: hidden; z-index: 60;
+      transform: translateY(20px) scale(0.95);
+      opacity: 0; pointer-events: none;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .chat-widget-card.open {
+      transform: translateY(0) scale(1);
+      opacity: 1; pointer-events: all;
+    }
+
+    .chat-widget-header {
+      background: var(--dark); color: white;
+      padding: 14px 18px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .chat-messages {
+      flex: 1; padding: 16px; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 12px;
+      background: #f8fafc;
+    }
+
+    .message {
+      max-width: 85%; padding: 10px 14px;
+      border-radius: 16px; font-size: 0.88rem; line-height: 1.45; word-wrap: break-word;
+    }
+    .message.bot {
+      background: #ffffff; color: #1e293b; align-self: flex-start;
+      border-bottom-left-radius: 4px; border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+    .message.user {
+      background: var(--green); color: white; align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+
+    .quick-prompts {
+      display: flex; gap: 6px; padding: 8px 14px;
+      background: #f1f5f9; overflow-x: auto;
+      border-top: 1px solid #e2e8f0;
+    }
+    .chip {
+      background: white; border: 1px solid #cbd5e1;
+      padding: 5px 12px; border-radius: 99px;
+      font-size: 0.76rem; cursor: pointer; white-space: nowrap;
+      font-weight: 600; color: #334155; transition: all 0.15s;
+    }
+    .chip:hover { background: var(--green); color: white; border-color: var(--green); }
+  </style>
+</head>
+<body class="text-slate-800 bg-slate-50">
+
+  <div id="map"></div>
+
+  <!-- Top Navigation -->
+  <nav class="nav-root">
+    <div class="nav-brand" onclick="window.location.reload()">
+      <div class="nav-logo-badge">
+        <svg class="w-5 h-5 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      </div>
+      <div class="nav-brand-text">Ledger<span>Snapper</span></div>
+    </div>
+
+    <div class="flex items-center gap-6">
+      <button class="nav-btn-login">Login</button>
+      <button onclick="toggleCartPanel()" class="nav-btn-cart">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+        Cart <span class="cart-count" id="cartBtnCount">0</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Floating Cart Panel -->
+  <div class="cart-panel" id="cartPanel">
+    <div class="cart-header">Your Shopping Cart</div>
+    <div class="cart-items" id="cartItemsList">
+      <p style="font-size:12px; color:#94a3b8; font-style:italic;">Your cart is empty.</p>
+    </div>
+    <div class="cart-total">Total: KES <span id="cartTotalVal">0</span></div>
+  </div>
+
+  <!-- Sidebar Product Search -->
+  <div id="sidebar" class="sidebar-root md:translate-x-0">
+    <div class="sidebar-inner sidebar-scroll">
+
+      <div class="add-facility-card">
+        <div>
+          <h3>Scan a Ledger</h3>
+          <p>Photo your stock page for prices</p>
+        </div>
+        <button class="btn-add-facility" onclick="toggleChatWidget(); document.getElementById('chatImageUpload').click();">+ Scan Page</button>
+      </div>
+
+      <!-- 1. Location selection -->
+      <div>
+        <span class="section-label">1. Your Location</span>
+        <div class="flex gap-2">
+          <div class="input-wrap" style="flex:1">
+            <svg class="input-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
+            <input type="text" id="search-input" placeholder="Search your area…" class="field-input">
+          </div>
+          <button id="btn-gps" onclick="triggerGPS()" class="btn-gps" title="Use Current GPS">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.243-4.243a8 8 0 1111.314 0z"/></svg>
+          </button>
+        </div>
+        <div id="search-suggestions" class="absolute w-full mt-2 bg-white border border-slate-100 rounded-xl shadow-xl z-50 hidden max-h-48 overflow-y-auto"></div>
+      </div>
+
+      <!-- 2. Product Search -->
+      <div>
+        <span class="section-label">2. What Are You Looking For?</span>
+        <div class="input-wrap">
+          <svg class="input-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l-1.35 11.15A2 2 0 0115.67 22H8.33a2 2 0 01-1.98-1.85L5 9z"/></svg>
+          <input type="text" id="filter-input" placeholder="Search product — sugar, milk, bread…" class="field-input">
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <div class="relative" style="flex:1">
+          <select id="radius-select" class="field-select">
+            <option value="5">Within 5 km</option>
+            <option value="10" selected>Within 10 km</option>
+            <option value="25">Within 25 km</option>
+          </select>
+        </div>
+        <button id="btn-get-route" class="btn-route">Compare Prices</button>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
+      <!-- Live Results Feed -->
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-size:11px;font-weight:800;color:#0f172a;text-transform:uppercase;letter-spacing:0.12em">Nearby Stores</span>
+          <span id="map-record-count" class="nearby-count-badge">0</span>
+        </div>
+        <p id="results-count" style="font-size:11px;color:#94a3b8;font-weight:500;margin-bottom:12px">Search an item to scan live prices.</p>
+        <div id="facility-list-container" style="display:flex;flex-direction:column;gap:10px"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Zoom Controls -->
+  <div class="zoom-controls">
+    <button onclick="if(window.map) map.zoomIn()" class="btn-zoom">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+    </button>
+    <button onclick="if(window.map) map.zoomOut()" class="btn-zoom">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M20 12H4"/></svg>
+    </button>
+  </div>
+
+  <!-- Floating Chatbot Launcher -->
+  <button class="chat-launcher-btn" id="chatLauncherBtn" onclick="toggleChatWidget()" title="Open Shopping Assistant">
+    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+    </svg>
+  </button>
+
+  <!-- Floating Chatbot Window -->
+  <div class="chat-widget-card" id="chatWidget">
+    <div class="chat-widget-header">
+      <div class="flex items-center gap-2">
+        <div style="width: 8px; height: 8px; background: #22c55e; border-radius: 50%; box-shadow: 0 0 8px #22c55e;"></div>
+        <div>
+          <div style="font-weight: 800; font-size: 0.95rem; color: #fff;">LedgerSnap AI</div>
+          <div style="font-size: 0.72rem; color: #94a3b8;">Nairobi Retail & Price Scout</div>
+        </div>
+      </div>
+      <button onclick="toggleChatWidget()" style="background:none; border:none; color:#cbd5e1; font-size:20px; cursor:pointer;">&times;</button>
+    </div>
+
+    <div class="chat-messages" id="chatMessages">
+      <div class="message bot">
+        👋 Hi! Ask me to search any product, or <b>upload your shopping list</b> with a budget, and I'll find stores that fit your needs!
+      </div>
+    </div>
+
+    <div class="quick-prompts">
+      <button class="chip" onclick="quickPromptSearch('Milk 500ml')">🥛 Fresh Milk</button>
+      <button class="chip" onclick="quickPromptSearch('Sugar 2kg')">🍬 Sugar 2kg</button>
+      <button class="chip" onclick="quickPromptSearch('Bread 400g')">🍞 Bread Deals</button>
+    </div>
+
+    <!-- Modifed Chat Input Area (Added Upload & Budget features) -->
+    <div style="display: flex; flex-direction: column; padding: 12px 14px; background: white; border-top: 1px solid #e2e8f0;">
+      
+      <!-- Hidden File Input WITH capture="environment" -->
+      <input type="file" id="chatImageUpload" accept="image/*" capture="environment" style="display: none;" onchange="handleImageSelection(event)">
+      
+      <!-- Preview & Budget Container (Shows only when image selected) -->
+      <div id="uploadPreviewContainer" style="display: none; align-items: center; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid #f1f5f9; margin-bottom: 8px;">
+        <img id="imgPreview" style="width: 44px; height: 44px; border-radius: 6px; object-fit: cover; border: 2px solid var(--green);">
+        <input type="number" id="budgetInput" placeholder="Budget (KES)" style="flex:1; padding: 8px 12px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.85rem; outline: none;">
+        <button onclick="removeImage()" style="background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-weight: bold; display:flex; justify-content:center; align-items:center;">&times;</button>
+      </div>
+
+      <!-- Text Input Row -->
+      <div style="display: flex; gap: 8px; width: 100%; align-items: center;">
+        
+        <!-- Mobile-friendly Camera Button -->
+        <button class="upload-btn" onclick="document.getElementById('chatImageUpload').click()" title="Take Photo of List" style="background: var(--green-soft); border: none; cursor: pointer; color: var(--green); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: transform 0.2s, background 0.2s;">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </button>
+        
+        <input type="text" id="chatUserInput" placeholder="Ask for deals or snap a list..." onkeypress="if(event.key==='Enter') sendChatMessage()" style="flex:1; padding: 10px 14px; border: 1.5px solid #cbd5e1; border-radius: 99px; outline: none; font-size: 0.88rem;">
+        
+        <button onclick="sendChatMessage()" style="background: var(--green); color: white; border: none; padding: 0 18px; height: 38px; border-radius: 99px; font-weight: 700; font-size: 0.85rem; cursor: pointer;">Send</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Load Config file -->
+  <script src="js/config.js"></script>
+
+  <!-- Complete Core Application Engine -->
+  <script>
+    // Bulletproof Token & Key Handlers
+    // --- CART SYSTEM ---
+    let globalCart = [];
+
+    function toggleCartPanel() {
+      document.getElementById('cartPanel').classList.toggle('open');
+    }
+
+    // Exposed to window so dynamically generated HTML buttons can call it
+    window.addToCart = function(brand, priceStr, store) {
+      // Extract numeric value from string (e.g. "KES 1,500" -> 1500)
+      const priceMatch = priceStr.match(/\d+(,\d+)*(\.\d+)?/);
+      const price = priceMatch ? parseFloat(priceMatch[0].replace(/,/g, '')) : 0;
+      
+      globalCart.push({ brand, price, store });
+      updateCartUI();
+
+      // Bounce animation on cart button
+      const badge = document.getElementById('cartBtnCount');
+      badge.style.transform = 'scale(1.5)';
+      setTimeout(() => badge.style.transform = 'scale(1)', 200);
+    };
+
+    window.removeFromCart = function(index) {
+      globalCart.splice(index, 1);
+      updateCartUI();
+    };
+
+    function updateCartUI() {
+      document.getElementById('cartBtnCount').innerText = globalCart.length;
+      const list = document.getElementById('cartItemsList');
+      list.innerHTML = '';
+      
+      if (globalCart.length === 0) {
+        list.innerHTML = '<p style="font-size:12px; color:#94a3b8; font-style:italic;">Your cart is empty.</p>';
+        document.getElementById('cartTotalVal').innerText = "0";
+        return;
+      }
+
+      let total = 0;
+      globalCart.forEach((item, index) => {
+        total += item.price;
+        list.innerHTML += `
+          <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:8px; border-bottom:1px solid #f1f5f9;">
+            <div style="line-height:1.2;">
+              <span style="font-size:12px; font-weight:700; color:#0f172a;">${item.brand}</span><br>
+              <span style="font-size:10px; color:#64748b;">${item.store}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:12px; font-weight:800; color:#0F6E56;">${item.price}</span>
+              <button onclick="removeFromCart(${index})" style="background:#ef4444; color:white; border:none; border-radius:50%; width:16px; height:16px; font-size:8px; cursor:pointer;">X</button>
+            </div>
+          </div>
+        `;
+      });
+      document.getElementById('cartTotalVal').innerText = total.toLocaleString();
+    }
+
+    // --- MAPBOX SYSTEM ---
+    mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN;
+    let currentLng = 36.8219; 
+    let currentLat = -1.2921;
+    let userMarker = null; 
+    let currentStoreMarkers = []; 
+
+    const map = new mapboxgl.Map({
+      container: 'map', 
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: [currentLng, currentLat], 
+      zoom: 12.5,
+      pitch: 35 
+    });
+    window.map = map;
+
+    function updateSearchCenter(lng, lat) {
+      currentLng = lng;
+      currentLat = lat;
+      if (userMarker) userMarker.remove();
+      const userEl = document.createElement('div');
+      userEl.innerHTML = `<div style="width:24px;height:24px;background:rgba(239,68,68,0.25);border-radius:50%;display:flex;align-items:center;justify-content:center;animation:pulse 2s infinite;"><div style="width:12px;height:12px;background:#EF4444;border:2px solid white;border-radius:50%;box-shadow:0 2px 4px rgba(0,0,0,0.3);"></div></div>`;
+      userMarker = new mapboxgl.Marker(userEl).setLngLat([lng, lat]).addTo(map);
+    }
+
+    window.triggerGPS = function() {
+      const searchInp = document.getElementById('search-input');
+      if (searchInp) searchInp.value = "Locating...";
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            if (searchInp) searchInp.value = "Current GPS Location";
+            updateSearchCenter(pos.coords.longitude, pos.coords.latitude);
+            map.flyTo({ center: [currentLng, currentLat], zoom: 14 }); 
+          },
+          () => { alert("Location access denied."); },
+          { timeout: 7000 }
+        );
+      }
+    };
+
+    map.on('click', (e) => {
+      if (e.originalEvent.target.closest('.mapboxgl-popup') || e.originalEvent.target.closest('.mapboxgl-marker')) return;
+      document.getElementById('search-input').value = "Custom Pin Location";
+      updateSearchCenter(e.lngLat.lng, e.lngLat.lat);
+    });
+
+    async function drawRouteToStore(endCoords) {
+      try {
+        const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${currentLng},${currentLat};${endCoords[0]},${endCoords[1]}?geometries=geojson&access_token=${mapboxgl.accessToken}`;
+        const res = await fetch(url);
+        const json = await res.json();
+        if (!json.routes || json.routes.length === 0) return;
+        const route = json.routes[0].geometry.coordinates;
+        const geojson = { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: route } };
+        if (map.getSource('store-route')) map.getSource('store-route').setData(geojson);
+        else {
+          map.addLayer({
+            id: 'store-route', type: 'line', source: { type: 'geojson', data: geojson },
+            layout: { 'line-join': 'round', 'line-cap': 'round' },
+            paint: { 'line-color': '#0F6E56', 'line-width': 5, 'line-opacity': 0.85 } 
+          });
+        }
+        const bounds = new mapboxgl.LngLatBounds([currentLng, currentLat], [currentLng, currentLat]);
+        route.forEach(c => bounds.extend(c));
+        map.fitBounds(bounds, { padding: 90 });
+      } catch (err) {}
+    }
+
+    function plotStoresOnMap(stores) {
+      currentStoreMarkers.forEach(m => m.remove());
+      currentStoreMarkers = [];
+
+      const listContainer = document.getElementById('facility-list-container');
+      if (listContainer) listContainer.innerHTML = '';
+
+      const countBadge = document.getElementById('map-record-count');
+      if (countBadge) countBadge.innerText = stores.length;
+
+      const resultsCount = document.getElementById('results-count');
+      if (resultsCount) resultsCount.innerText = stores.length > 0 ? `Showing ${stores.length} competitive store prices` : "No stores found.";
+
+      const bounds = new mapboxgl.LngLatBounds();
+      if (userMarker) bounds.extend([currentLng, currentLat]);
+
+      stores.forEach(store => {
+        const coords = [store.lng, store.lat];
+        bounds.extend(coords);
+
+        const markerEl = document.createElement('div');
+        markerEl.className = 'marker-wrap cursor-pointer';
+        markerEl.innerHTML = `<div class="marker-pin"></div>`;
+
+        const popup = new mapboxgl.Popup({ offset: 25, closeButton: true, maxWidth: '280px' });
+        
+        // Pass item specifics to Add To Cart
+        const safeBrand = store.product_brand.replace(/'/g, "\\'");
+        const safeStore = store.store_name.replace(/'/g, "\\'");
+
+        popup.setHTML(`
+          <div style="padding:10px; font-family:'Plus Jakarta Sans',sans-serif;">
+            <h3 style="margin:0 0 4px; font-size:14px; font-weight:800; color:#09261e;">${store.store_name}</h3>
+            <p style="margin:0 0 6px; font-size:11px; font-weight:600; color:#64748b;">
+              Brand/Items: <span style="color:#0F6E56; font-weight:700;">${store.product_brand}</span>
+            </p>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+              <span style="color:#0F6E56; font-weight:800; font-size:16px;">${store.price}</span>
+              <button onclick="addToCart('${safeBrand}', '${store.price}', '${safeStore}')" class="btn-cart-action">Add Cart</button>
+            </div>
+          </div>
+        `);
+
+        const marker = new mapboxgl.Marker(markerEl).setLngLat(coords).setPopup(popup).addTo(map);
+        currentStoreMarkers.push(marker);
+
+        if (listContainer) {
+          const card = document.createElement('div');
+          card.className = 'facility-card';
+          card.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:4px;">
+              <h4 style="margin:0; font-size:13px; font-weight:800; color:#0f172a;">${store.store_name}</h4>
+              <span style="font-size:13px; font-weight:800; color:#0F6E56;">${store.price}</span>
+            </div>
+            <p style="margin:0 0 8px; font-size:10px; color:#64748b;">${store.product_brand}</p>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <button onclick="drawRouteToStore([${store.lng}, ${store.lat}])" style="background:none; border:none; color:#0F6E56; font-size:11px; font-weight:800; cursor:pointer; padding:0;">Route &rarr;</button>
+              <button onclick="addToCart('${safeBrand}', '${store.price}', '${safeStore}')" class="btn-cart-action">Cart +</button>
+            </div>
+          `;
+          listContainer.appendChild(card);
+        }
+      });
+
+      if (stores.length > 0) map.fitBounds(bounds, { padding: 80, maxZoom: 15 });
+    }
+
+    // --- VISION & CHAT AI SYSTEM ---
+    let selectedImageBase64 = null;
+    let selectedImageMime = null;
+
+    window.handleImageSelection = function(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target.result;
+        selectedImageMime = file.type;
+        selectedImageBase64 = result.split(',')[1];
+        const previewBox = document.getElementById('imgPreview');
+        previewBox.src = result;
+        document.getElementById('uploadPreviewContainer').style.display = 'flex';
+      };
+      reader.readAsDataURL(file);
+    };
+
+    window.removeImage = function() {
+      selectedImageBase64 = null;
+      selectedImageMime = null;
+      document.getElementById('chatImageUpload').value = '';
+      document.getElementById('budgetInput').value = '';
+      document.getElementById('uploadPreviewContainer').style.display = 'none';
+    };
+
+    // Using gemini-3.8-flash for text and image processing
+    async function executeAiShoppingScout(query, userLocationName = "Nairobi", budgetVal = null) {
+      let promptText = `You are LedgerSnap AI, a smart price comparison and retail scout in Nairobi. The user location is near ${userLocationName}. `;
+      
+      if (selectedImageBase64) {
+        promptText += `The user has uploaded an image of a shopping list or items. Extract all the items from the image. `;
+      } else {
+        promptText += `The user is inquiring about: "${query}". `;
+      }
+      
+      if (budgetVal) {
+        promptText += `CRITICAL: The user has a strict budget of KES ${budgetVal}. You MUST calculate if their list or request fits within this budget and explicitly state your findings in the recommendation. `;
+      }
+
+      promptText += `
+Tasks:
+1. Provide a concise recommendation: if a list was uploaded, name the items found and state which supermarket chain has the cheapest total basket cost. If a single query, give advice on best brand deals.
+2. Generate up to 10 realistic supermarket/store comparisons (such as Naivas, Carrefour, Quickmart, Chandarana, Cleanshelf, local shops) that sell these items.
+3. Provide a realistic TOTAL price for the item(s) in KES.
+4. "product_brand" should be a short summary of the items/brands (e.g. "Brookside Milk, Supaloaf" or "Full Shopping List").
+5. Generate RANDOM valid coordinates for each store within Nairobi (lat: between -1.22 and -1.33, lng: between 36.72 and 36.92).
+
+Respond ONLY with a valid JSON object without markdown code fences:
+{
+  "recommendation": "Found 4 items on your list. Naivas offers the best total basket price.",
+  "stores": [
+    {
+      "store_name": "Naivas Supermarket",
+      "product_brand": "Full Shopping List",
+      "price": "KES 1,500",
+      "lat": -1.275,
+      "lng": 36.815
+    }
+  ]
+}`;
+
+      const parts = [{ text: promptText }];
+      
+      // If image exists, inject it into the AI payload
+      if (selectedImageBase64) {
+        parts.push({
+          inlineData: { mimeType: selectedImageMime, data: selectedImageBase64 }
+        });
+      }
+
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_KEY}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: parts }] })
+      });
+
+      if (!res.ok) throw new Error(`Gemini Error (${res.status})`);
+      
+      const data = await res.json();
+      let raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+      raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(raw);
+    }
+
+    // --- CHATBOT INTERACTION LOGIC ---
+    function toggleChatWidget() {
+      const widget = document.getElementById('chatWidget');
+      widget.classList.toggle('open');
+      if (widget.classList.contains('open')) {
+        document.getElementById('chatUserInput').focus();
+      }
+    }
+
+    function appendChatMessage(htmlOrText, type, isHtml = false) {
+      const c = document.getElementById('chatMessages');
+      const msg = document.createElement('div');
+      msg.className = `message ${type}`;
+      if (isHtml) msg.innerHTML = htmlOrText;
+      else msg.innerText = htmlOrText;
+      c.appendChild(msg);
+      c.scrollTop = c.scrollHeight;
+      return msg;
+    }
+
+    async function sendChatMessage() {
+      const input = document.getElementById('chatUserInput');
+      const query = input.value.trim();
+      const budgetVal = document.getElementById('budgetInput').value.trim();
+      
+      // Prevent sending empty queries unless an image is attached
+      if (!query && !selectedImageBase64) return;
+
+      let displayMsg = query || "Please review my attached list.";
+      if (selectedImageBase64) {
+        displayMsg = `<i>[📸 Image Attached]</i> ` + displayMsg;
+      }
+      if (budgetVal) {
+        displayMsg += `<br><span style="font-size: 0.8em; opacity: 0.8;">Budget: KES ${budgetVal}</span>`;
+      }
+      
+      appendChatMessage(displayMsg, 'user', true);
+      input.value = '';
+
+      const loadingMsg = appendChatMessage('<em>Scouting store shelves & calculating totals...</em>', 'bot', true);
+
+      try {
+        const areaName = document.getElementById('search-input').value || "Nairobi";
+        const result = await executeAiShoppingScout(query, areaName, budgetVal);
+
+        // Update Chatbot with advice and store deals
+        let replyHtml = `<div>${result.recommendation}</div>`;
+        if (result.stores && result.stores.length > 0) {
+          replyHtml += `<div style="margin-top:8px; display:flex; flex-direction:column; gap:4px;">`;
+          result.stores.forEach(s => {
+            replyHtml += `
+              <div style="background:#f1f5f9; padding:6px 10px; border-radius:8px; font-size:0.8rem; display:flex; justify-content:space-between; align-items:center;">
+                <div style="line-height:1.2;">
+                  <b>${s.store_name}</b><br>
+                  <span style="font-size:0.7rem; color:#64748b;">${s.product_brand}</span>
+                </div>
+                <span style="color:#0F6E56; font-weight:800;">${s.price}</span>
+              </div>
+            `;
+          });
+          replyHtml += `</div><div style="margin-top:6px; font-size:0.75rem; color:#64748b;">📍 <i>Map updated with store locations!</i></div>`;
+        }
+
+        loadingMsg.innerHTML = replyHtml;
+
+        // Auto-plot onto Map and populate Sidebar
+        if (result.stores && result.stores.length > 0) {
+          plotStoresOnMap(result.stores);
+        }
+
+        // Clear image upload after successful processing
+        removeImage();
+
+      } catch (err) {
+        loadingMsg.innerText = "Could not fetch store prices right now. Error: " + err.message;
+        removeImage();
+      }
+    }
+
+    function quickPromptSearch(item) {
+      document.getElementById('chatUserInput').value = item;
+      sendChatMessage();
+    }
+
+    // --- SIDEBAR "COMPARE PRICES" BUTTON LISTENER ---
+    document.getElementById('btn-get-route').addEventListener('click', async () => {
+      const productQuery = document.getElementById('filter-input').value.trim();
+      const areaName = document.getElementById('search-input').value.trim() || "Nairobi";
+
+      if (!productQuery) {
+        alert("Please enter a product to search for (e.g. sugar, milk, bread).");
+        return;
+      }
+
+      const btn = document.getElementById('btn-get-route');
+      const origText = btn.innerText;
+      btn.innerText = "Comparing...";
+      btn.disabled = true;
+
+      try {
+        const result = await executeAiShoppingScout(productQuery, areaName);
+
+        // Plot pins and sidebar
+        if (result.stores && result.stores.length > 0) {
+          plotStoresOnMap(result.stores);
+        }
+
+        // Send results into chatbot too
+        const widget = document.getElementById('chatWidget');
+        if (!widget.classList.contains('open')) {
+          widget.classList.add('open');
+        }
+        
+        appendChatMessage(`Searched: <b>${productQuery}</b>`, 'user', true);
+        let botHtml = `<div>${result.recommendation}</div>`;
+        if (result.stores) {
+          botHtml += `<div style="margin-top:6px; font-size:0.75rem; color:#0F6E56; font-weight:700;">✅ Found ${result.stores.length} store prices. Add items to your cart from the map pins or sidebar!</div>`;
+        }
+        appendChatMessage(botHtml, 'bot', true);
+
+      } catch (err) {
+        alert("Search failed. Ensure your API connection is active.");
+      } finally {
+        btn.innerText = origText;
+        btn.disabled = false;
+      }
+    });
+
+    // Default init
+    map.on('load', () => {
+      updateSearchCenter(currentLng, currentLat);
+    });
+  </script>
+</body>
+</html>
