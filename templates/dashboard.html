@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+{%load static%}<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -362,6 +362,7 @@
   </style>
 </head>
 <body class="text-slate-800 bg-slate-50">
+  {% csrf_token %}
 
   <div id="map"></div>
 
@@ -377,7 +378,6 @@
     </div>
 
     <div class="flex items-center gap-6">
-      <button class="nav-btn-login">Login</button>
       <button onclick="toggleCartPanel()" class="nav-btn-cart">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
         Cart <span class="cart-count" id="cartBtnCount">0</span>
@@ -531,7 +531,8 @@
   </div>
 
   <!-- Load Config file -->
-  <script src="js/config.js"></script>
+  <script src="{%url 'frontend-config'%}"></script>
+  <script src="{%static 'js/ai-search.js' %}"></script>
 
   <!-- Complete Core Application Engine -->
   <script>
@@ -594,7 +595,7 @@
     }
 
     // --- MAPBOX SYSTEM ---
-    mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN;
+    mapboxgl.accessToken = MAPBOX_TOKEN;
     let currentLng = 36.8219; 
     let currentLat = -1.2921;
     let userMarker = null; 
@@ -756,65 +757,13 @@
       document.getElementById('uploadPreviewContainer').style.display = 'none';
     };
 
-    // Using gemini-3.8-flash for text and image processing
     async function executeAiShoppingScout(query, userLocationName = "Nairobi", budgetVal = null) {
-      let promptText = `You are LedgerSnap AI, a smart price comparison and retail scout in Nairobi. The user location is near ${userLocationName}. `;
-      
-      if (selectedImageBase64) {
-        promptText += `The user has uploaded an image of a shopping list or items. Extract all the items from the image. `;
-      } else {
-        promptText += `The user is inquiring about: "${query}". `;
-      }
-      
-      if (budgetVal) {
-        promptText += `CRITICAL: The user has a strict budget of KES ${budgetVal}. You MUST calculate if their list or request fits within this budget and explicitly state your findings in the recommendation. `;
-      }
+    const imagePayload = selectedImageBase64
+        ? { mime: selectedImageMime, data: selectedImageBase64 }
+        : null;
 
-      promptText += `
-Tasks:
-1. Provide a concise recommendation: if a list was uploaded, name the items found and state which supermarket chain has the cheapest total basket cost. If a single query, give advice on best brand deals.
-2. Generate up to 10 realistic supermarket/store comparisons (such as Naivas, Carrefour, Quickmart, Chandarana, Cleanshelf, local shops) that sell these items.
-3. Provide a realistic TOTAL price for the item(s) in KES.
-4. "product_brand" should be a short summary of the items/brands (e.g. "Brookside Milk, Supaloaf" or "Full Shopping List").
-5. Generate RANDOM valid coordinates for each store within Nairobi (lat: between -1.22 and -1.33, lng: between 36.72 and 36.92).
-
-Respond ONLY with a valid JSON object without markdown code fences:
-{
-  "recommendation": "Found 4 items on your list. Naivas offers the best total basket price.",
-  "stores": [
-    {
-      "store_name": "Naivas Supermarket",
-      "product_brand": "Full Shopping List",
-      "price": "KES 1,500",
-      "lat": -1.275,
-      "lng": 36.815
-    }
-  ]
-}`;
-
-      const parts = [{ text: promptText }];
-      
-      // If image exists, inject it into the AI payload
-      if (selectedImageBase64) {
-        parts.push({
-          inlineData: { mimeType: selectedImageMime, data: selectedImageBase64 }
-        });
-      }
-
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_KEY}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ parts: parts }] })
-      });
-
-      if (!res.ok) throw new Error(`Gemini Error (${res.status})`);
-      
-      const data = await res.json();
-      let raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-      raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
-      return JSON.parse(raw);
-    }
-
+    return await callScoutApi(query, userLocationName, budgetVal, imagePayload);
+}
     // --- CHATBOT INTERACTION LOGIC ---
     function toggleChatWidget() {
       const widget = document.getElementById('chatWidget');

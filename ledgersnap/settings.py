@@ -9,24 +9,31 @@ https://docs.djangoproject.com/en/6.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
-
+import os
 from pathlib import Path
+from dotenv import load_dotenv 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
+load_dotenv(BASE_DIR/ '.env')
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-+^xmp7q!0c&)87m&7b__@&6iws7tqz&&-*y%p_+86!be6#)rrl"
+SECRET_KEY = os.environ.get('SECRET_KEY','dev-fallback-do-not-use-in-prod')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG','True') == 'True'
+ALLOWED_HOSTS = ['127.0.0.1','localhost']
 
-ALLOWED_HOSTS = []
-
+#API keys
+MAPBOX_TOKEN = os.environ.get('MAPBOX_TOKEN', '')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.5-flash')
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
+GROQ_MODEL = os.environ.get('GROQ_MODEL', 'llama-3.3-70b-versatile')
+SCOUT_REQUEST_TIMEOUT = 90
 
 # Application definition
 
@@ -115,10 +122,12 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATICFILES_DIRS = [
     BASE_DIR/"static"
 ]
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
 MEDIA_ROOT = BASE_DIR/'media'
 MEDIA_URL = '/media/'
 

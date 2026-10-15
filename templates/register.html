@@ -1,0 +1,87 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up - LedgerSnap</title>
+
+    <link rel="icon" type="image/jpeg" href="{% static 'images/logo.jpeg' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+
+<body class="auth-body">
+
+    <!-- Blurred slideshow background -->
+    <div class="bg-slideshow blurred">
+        <div class="bg-slide"></div>
+        <div class="bg-slide"></div>
+        <div class="bg-slide"></div>
+        <div class="bg-slide"></div>
+    </div>
+    <div class="overlay"></div>
+    <div class="auth-wrapper">
+        <div class="auth-container">
+            <a href="/" class="close-btn" title="Back to home">&times;</a>
+
+            <div class="auth-logo">
+                <img src="{% static 'images/logo.jpeg' %}" alt="LedgerSnap Logo" class="logo-img">
+                <span>LedgerSnap</span>
+            </div>
+
+            <h1>Create Account</h1>
+            <p class="subtitle">Sign up to start saving on groceries</p>
+
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="auth-message">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+
+            <form id="signupForm" method="POST" action="{% url 'register_view' %}">
+                {% csrf_token %}
+                <div class="input-group">
+                    <i class="fa-solid fa-user"></i>
+                    <input type="text" name="username" placeholder="Username" required>
+                </div>
+
+                <div class="input-group">
+                    <i class="fa-solid fa-envelope"></i>
+                    <input type="email" name="email" placeholder="Email Address" required>
+                </div>
+
+                <div class="input-group">
+                    <i class="fa-solid fa-lock"></i>
+                    <input type="password" id="signupPassword" name="password" placeholder="Password" required>
+                </div>
+
+                <div class="input-group">
+                    <i class="fa-solid fa-shield-halved"></i>
+                    <input type="password" id="confirmPassword" name="confirmPassword" placeholder="Confirm Password" required>
+                </div>
+
+                <button type="submit" class="auth-btn">
+                    <i class="fa-solid fa-user-plus"></i> &nbsp; Create Account
+                </button>
+            </form>
+
+            <div class="divider">OR</div>
+
+            <p class="switch-text">
+                Already have an account? <a href="{% url 'login_view' %}">Login</a>
+            </p>
+        </div>
+    </div>
+    <script>
+        document.getElementById("signupForm").addEventListener("submit", function (e) {
+            const pw = document.getElementById("signupPassword").value;
+            const confirmPw = document.getElementById("confirmPassword").value;
+            if (pw !== confirmPw) {
+                e.preventDefault();
+                alert("Passwords do not match.");
+            }
+        });
+    </script>
+</body>
+</html>
